@@ -3,14 +3,18 @@ local ScreenGui = Instance.new("ScreenGui")
 local MainFrame = Instance.new("Frame")
 local Title = Instance.new("TextLabel")
 local CloseButton = Instance.new("TextButton")
-local PlayerCategory = Instance.new("TextLabel")
+local PlayerCategory = Instance.new("TextButton")
 local HumanoidButton = Instance.new("TextButton")
 local AuraButton = Instance.new("TextButton")
+local TriggerBotButton = Instance.new("TextButton")
 local IconButton = Instance.new("ImageButton")
 
 -- Biến trạng thái
-local auraEnabled = false -- Trạng thái của Aura
-local fastAttackEnabled = false -- Trạng thái của Humanoid (Fast Attack)
+local menuVisible = false -- Trạng thái menu (ẩn/hiện)
+local modulesVisible = true -- Trạng thái hiển thị module trong Player
+local auraEnabled = false -- Trạng thái Aura
+local fastAttackEnabled = false -- Trạng thái Humanoid
+local triggerBotEnabled = false -- Trạng thái TriggerBot
 
 -- Cấu hình GUI
 ScreenGui.Name = "TestMenu"
@@ -61,8 +65,14 @@ PlayerCategory.Font = Enum.Font.SourceSansBold
 PlayerCategory.Text = "Player"
 PlayerCategory.TextColor3 = Color3.fromRGB(255, 255, 255)
 PlayerCategory.TextScaled = true
+PlayerCategory.MouseButton1Click:Connect(function()
+    modulesVisible = not modulesVisible
+    HumanoidButton.Visible = modulesVisible
+    AuraButton.Visible = modulesVisible
+    TriggerBotButton.Visible = modulesVisible
+end)
 
--- Nút Humanoid (Fast Attack)
+-- Nút Humanoid
 HumanoidButton.Name = "HumanoidButton"
 HumanoidButton.Parent = MainFrame
 HumanoidButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
@@ -72,23 +82,42 @@ HumanoidButton.Font = Enum.Font.SourceSans
 HumanoidButton.Text = "Humanoid (OFF)"
 HumanoidButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 HumanoidButton.TextScaled = true
+HumanoidButton.Visible = true
 
+local fastAttackConnection
 HumanoidButton.MouseButton1Click:Connect(function()
     fastAttackEnabled = not fastAttackEnabled
     HumanoidButton.Text = fastAttackEnabled and "Humanoid (ON)" or "Humanoid (OFF)"
-    
+
     if fastAttackEnabled then
-        print("Fast Attack activated!")
-        local player = game.Players.LocalPlayer
-        local character = player.Character or player.CharacterAdded:Wait()
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        
-        if humanoid then
-            humanoid.Animator:Destroy() -- Tắt cooldown tấn công
-            print("Cooldown bypassed!")
-        end
+        print("Fast Attack Activated")
+        fastAttackConnection = game:GetService("RunService").Stepped:Connect(function()
+            local character = game.Players.LocalPlayer.Character
+            if character and character:FindFirstChild("Humanoid") then
+                local humanoid = character:FindFirstChild("Humanoid")
+                if humanoid and humanoid:FindFirstChild("Animator") then
+                    for _, animTrack in pairs(humanoid.Animator:GetPlayingAnimationTracks()) do
+                        animTrack:AdjustSpeed(2) -- Tăng tốc độ đánh
+                    end
+                end
+            end
+        end)
     else
-        print("Fast Attack deactivated!")
+        print("Fast Attack Deactivated")
+        if fastAttackConnection then
+            fastAttackConnection:Disconnect()
+            fastAttackConnection = nil
+        end
+
+        local character = game.Players.LocalPlayer.Character
+        if character and character:FindFirstChild("Humanoid") then
+            local humanoid = character:FindFirstChild("Humanoid")
+            if humanoid and humanoid:FindFirstChild("Animator") then
+                for _, animTrack in pairs(humanoid.Animator:GetPlayingAnimationTracks()) do
+                    animTrack:AdjustSpeed(1) -- Khôi phục tốc độ gốc
+                end
+            end
+        end
     end
 end)
 
@@ -102,47 +131,76 @@ AuraButton.Font = Enum.Font.SourceSans
 AuraButton.Text = "Aura (OFF)"
 AuraButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 AuraButton.TextScaled = true
-
+AuraButton.Visible = true
 AuraButton.MouseButton1Click:Connect(function()
     auraEnabled = not auraEnabled
     AuraButton.Text = auraEnabled and "Aura (ON)" or "Aura (OFF)"
-    
+
     if auraEnabled then
-        print("Aura enabled!")
-        -- Tự động tấn công quái/địch
-        spawn(function()
-            while auraEnabled do
-                for _, enemy in pairs(workspace:GetDescendants()) do
-                    if enemy:IsA("Model") and enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 then
-                        local player = game.Players.LocalPlayer
-                        local character = player.Character or player.CharacterAdded:Wait()
-                        local tool = character:FindFirstChildOfClass("Tool")
-                        
-                        if tool and tool:FindFirstChild("Handle") then
-                            firetouchinterest(tool.Handle, enemy:FindFirstChild("Head") or enemy.PrimaryPart, 0)
-                            firetouchinterest(tool.Handle, enemy:FindFirstChild("Head") or enemy.PrimaryPart, 1)
-                        end
-                    end
+        print("Aura Activated")
+        while auraEnabled do
+            local player = game.Players.LocalPlayer
+            local enemies = workspace:FindPartsInRegion3(Region3.new(player.Position - Vector3.new(10, 10, 10), player.Position + Vector3.new(10, 10, 10)))
+            for _, enemy in pairs(enemies) do
+                if enemy.Parent:FindFirstChild("Humanoid") then
+                    mouse1press() wait() mouse1release()
                 end
-                wait(0.1) -- Giảm tải
             end
-        end)
+            wait(0.1)
+        end
     else
-        print("Aura disabled!")
+        print("Aura Deactivated")
     end
 end)
 
--- Icon ETH (hình tròn, mở menu)
+-- Nút TriggerBot
+TriggerBotButton.Name = "TriggerBotButton"
+TriggerBotButton.Parent = MainFrame
+TriggerBotButton.BackgroundColor3 = Color3.fromRGB(255, 85, 0)
+TriggerBotButton.Position = UDim2.new(0.1, 0, 0.6, 0)
+TriggerBotButton.Size = UDim2.new(0.8, 0, 0.1, 0)
+TriggerBotButton.Font = Enum.Font.SourceSans
+TriggerBotButton.Text = "TriggerBot (OFF)"
+TriggerBotButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+TriggerBotButton.TextScaled = true
+TriggerBotButton.Visible = true
+TriggerBotButton.MouseButton1Click:Connect(function()
+    triggerBotEnabled = not triggerBotEnabled
+    TriggerBotButton.Text = triggerBotEnabled and "TriggerBot (ON)" or "TriggerBot (OFF)"
+    if triggerBotEnabled then
+        print("TriggerBot Activated")
+        game:GetService("RunService").RenderStepped:Connect(function()
+            local player = game.Players.LocalPlayer
+            local mouse = player:GetMouse()
+            if mouse.Target and mouse.Target.Parent:FindFirstChild("Humanoid") and mouse.Target.Parent.Name ~= player.Name then
+                mouse1press() wait() mouse1release()
+            end
+        end)
+    else
+        print("TriggerBot Deactivated")
+    end
+end)
+
+-- Icon ETH (hình tròn)
 IconButton.Name = "IconButton"
 IconButton.Parent = ScreenGui
-IconButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Màu xanh lá cây
+IconButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
 IconButton.Position = UDim2.new(0.05, 0, 0.05, 0)
 IconButton.Size = UDim2.new(0, 50, 0, 50)
 IconButton.Image = "rbxassetid://12345678" -- Thay bằng ID hình ảnh
-IconButton.ImageColor3 = Color3.fromRGB(255, 255, 255)
 IconButton.BackgroundTransparency = 1
 IconButton.Active = true
-IconButton.Draggable = true -- Cho phép di chuyển icon
-IconButton.MouseButton1Click:Connect(function()
-    MainFrame.Visible = not MainFrame.Visible
+IconButton.Draggable = true -- Cho phép di chuyển
+local dragging = false
+IconButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+    end
+end)
+IconButton.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+        menuVisible = not menuVisible
+        MainFrame.Visible = menuVisible
+    end
 end)
